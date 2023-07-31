@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# Ask the user for their choice
+echo "Do you want to generate client keys (c) or server keys (s)?"
+read choice
+
+# Process the user's choice
+if [ "$choice" = "c" ]; then
+    echo "Generating client keys..."
+    openssl req -new -newkey rsa:2048 -days 365 -nodes -x509 -keyout client_key.pem -out client_cert.pem
+elif [ "$choice" = "s" ]; then
+    echo "Generating server keys..."
+    openssl req -new -newkey rsa:2048 -days 365 -nodes -x509 -keyout server_key.pem -out server_cert.pem
+else
+    echo "Invalid choice. Please run the script again and choose either 'c' for client or 's' for server."
+fi
+
