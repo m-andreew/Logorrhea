@@ -145,6 +145,7 @@ def readcommand(sock, sockline):
     else:
         # must be regular message
         if uppersockuser in table:
+            table[user]['lastactivity'] = time.time()
             broadcastmsg(uppersockuser, sockuser, sockmsg)
         else:
             try:
