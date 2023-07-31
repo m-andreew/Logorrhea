@@ -1,5 +1,5 @@
 """
-chat v.0.5 Jul 30 2023
+chat v.0.9.5 Jul 30 2023
 an FSMP (Fred Short Message Protocol) chat server, starts and listens at
 HOST:PORT
 invoke with:
@@ -88,6 +88,7 @@ def main():
                         sock.close()
                     except:
                         pass
+            time.sleep(0.4)
 
         for sock in exceptional:
             if sock in inputs:
@@ -149,7 +150,7 @@ def senduserlist(uppersockuser):
     global msgcount
     for user in table:
         try:
-            table[uppersockuser]['socket'].send(f"Online last 30min: {user}".encode())
+            table[uppersockuser]['socket'].send(f"Online last 120 min: {user}".encode())
         except Exception as err:
             print("failed with %s" % (err))
             break
@@ -170,7 +171,7 @@ def adduser(user, sock):
     global totaluser
     table[user] = {'lastactivity': time.time(), 'socket': sock}
     try:
-        sock.send("Welcome to Logorrhea v0.9".encode())
+        sock.send(f"Welcome to Logorrhea v0.9.5".encode())
         msgcount += 1
         totaluser += 1
     except Exception as err:
@@ -180,7 +181,7 @@ def deluser(user):
     global inputs
     global msgcount
     try:
-        table[user]['socket'].send("Goodbye from Logorrhea v0.9".encode())
+        table[user]['socket'].send(f"Goodbye from Logorrhea v0.9.5".encode())
         msgcount += 1
         table[user]['socket'].close()
         inputs.remove(table[user]['socket'])
@@ -191,9 +192,9 @@ def deluser(user):
 
 def broadcastmsg(uppersockuser, sockuser, sockmsg):
     global msgcount
-    # remove users inactive for 30 minutes
+    # remove users inactive for 120 minutes
     users_to_remove = []
-    thirtyMinutesAgo = time.time()-30*60
+    thirtyMinutesAgo = time.time()-120*60
     for username, userDict in table.items():
         if userDict["lastactivity"] < thirtyMinutesAgo:
             print("Deleting inactive user '%s'" % (username))
