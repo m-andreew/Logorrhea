@@ -1,5 +1,5 @@
 """
-chat v.0.9.5 Jul 30 2023
+chat v.0.9.6 Jul 30 2023
 an FSMP (Fred Short Message Protocol) chat server, starts and listens at
 HOST:PORT
 invoke with:
@@ -168,14 +168,14 @@ def adduser(user, sock):
     global totaluser
     table[user] = {'lastactivity': time.time(), 'socket': sock}
     try:
-        send(user, " Welcome to Logorrhea v0.9.5")
+        send(user, "  Welcome to Logorrhea v0.9.6")
         totaluser += 1
     except Exception as err:
         print("failed with %s" % (err))
 
 def deluser(user):
     global inputs
-    send(user, "Goodbye from Logorrhea v0.9.5")
+    send(user, "  Goodbye from Logorrhea v0.9.6")
     table[user]['socket'].close()
     inputs.remove(table[user]['socket'])
     del table[user]
