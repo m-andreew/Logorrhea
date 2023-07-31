@@ -98,6 +98,14 @@ def main():
             except:
                 pass
 
+def send(user, *args):
+    global msgcount
+    try:
+        table[user]['socket'].send(''.join(args).encode())
+        msgcount += 1
+    except Exception as err:
+        print("send failed with %s" % (err))
+
 def readcommand(sock, sockline):
     global msgcount
     s = sockline.split("}") # split this message into sender and msg content
@@ -147,51 +155,31 @@ def readcommand(sock, sockline):
                 sock.close()
 
 def senduserlist(uppersockuser):
-    global msgcount
     for user in table:
-        try:
-            table[uppersockuser]['socket'].send(f"Online last 120 min: {user}".encode())
-        except Exception as err:
-            print("failed with %s" % (err))
-            break
-        msgcount += 1
+        send(uppersockuser, "Online last 120 min: ", user)
 
 def sendstats(user):
-    global msgcount
     s = str(msgcount)
     t = str(totaluser)
-    try:
-        table[user]['socket'].send(f" Total messages: {s}   Total users:{t}".encode())
-    except Exception as err:
-        print("failed with", err)
-    msgcount += 1
+    send(user, "  Total messages: ", s, "   Total users:", t)
 
 def adduser(user, sock):
-    global msgcount
     global totaluser
     table[user] = {'lastactivity': time.time(), 'socket': sock}
     try:
-        sock.send(f"Welcome to Logorrhea v0.9.5".encode())
-        msgcount += 1
+        send(user, " Welcome to Logorrhea v0.9.5")
         totaluser += 1
     except Exception as err:
         print("failed with %s" % (err))
 
 def deluser(user):
     global inputs
-    global msgcount
-    try:
-        table[user]['socket'].send(f"Goodbye from Logorrhea v0.9.5".encode())
-        msgcount += 1
-        table[user]['socket'].close()
-        inputs.remove(table[user]['socket'])
-    except Exception as err:
-        print("failed with %s" % (err))
-    finally:
-        del table[user]
+    send(user, "Goodbye from Logorrhea v0.9.5")
+    table[user]['socket'].close()
+    inputs.remove(table[user]['socket'])
+    del table[user]
 
 def broadcastmsg(uppersockuser, sockuser, sockmsg):
-    global msgcount
     # remove users inactive for 120 minutes
     users_to_remove = []
     thirtyMinutesAgo = time.time()-120*60
@@ -202,18 +190,9 @@ def broadcastmsg(uppersockuser, sockuser, sockmsg):
     
     for user in users_to_remove:
         del table[user]
-    users_to_remove = []
     
     for user in table:
-        try:
-            table[user]['socket'].send(f"> {sockuser} {sockmsg}".encode())
-            msgcount += 1
-        except Exception as err:
-            print("failed with %s" % (err))
-            users_to_remove.append(user)
-    
-    for user in users_to_remove:
-        deluser(user) 
+        send(uppersockuser, "> ", sockuser, sockmsg)
 
 if __name__ == '__main__':
     main()
