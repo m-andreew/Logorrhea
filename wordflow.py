@@ -82,7 +82,7 @@ def main():
                     sock.close()
                     sys.exit()
                 elif c == '\n' or c == '\r':
-                    sock.send((nick + ':' + buffer + '\n').encode('utf-8'))
+                    sock.send((nick + '}' + buffer + '\n').encode('utf-8'))
                     # clear_line()
                     # sys.stdout.write('> ' + buffer +'\n')
                     # sys.stdout.flush()

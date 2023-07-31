@@ -3,7 +3,7 @@ chat v.0.5 Jul 30 2023
 an FSMP (Fred Short Message Protocol) chat server, starts and listens at
 HOST:PORT
 invoke with:
-python chat.py host port defaultlogofftime
+python logorrhea.py
 (c) 2023 The FSMP Committee
 All rights reserved
 """
@@ -19,8 +19,7 @@ import time
 import datetime
 from dataclasses import dataclass
 
-import logging
-logging.basicConfig(level=logging.DEBUG)
+import traceback
 
 
 # Load SSH keys
@@ -38,11 +37,12 @@ HOST = 'localhost'
 PORT = 3141
 BUFFER_SIZE = 1024
 
-# Users
-table = {}
+table = {} # dict of dicts of all logged on users
 
 inputs = []
 outputs = []
+msgcount = 0 # total messages sent, used by /STATS command
+totaluser = 0 # total users logged in, used by /STATS command
     
 def main():
     global inputs
@@ -66,13 +66,12 @@ def main():
             if sock is server_socket:
                 conn, addr = sock.accept()
                 conn = context.wrap_socket(conn, server_side=True)
-                conn.send("Welcome to Logorrhea!".encode())
+                conn.send(" ".encode())
                 inputs.append(conn)
             else:
                 try:
                     line = sock.recv(BUFFER_SIZE)
                     if line:
-                        # print("message received:"+line.decode())
                         readcommand(sock, line.decode().removesuffix("\n")) # pass incoming line to message parser
                     else:
                         if sock in inputs:
@@ -99,16 +98,14 @@ def main():
                 pass
 
 def readcommand(sock, sockline):
-
-    # sockmsgtime = time.time()
-
-    s = sockline.split(":")
+    global msgcount
+    s = sockline.split("}") # split this message into sender and msg content
 
     sockuser = s[0]
     sockmsg = s[1] # This is the payload part of the incoming msg
     uppersockmsg = sockmsg.upper() # make upper case for command processing
     uppersockuser = sockuser.upper() # make user upper case
-    print("'%s' '%s'" % (uppersockuser, uppersockmsg))
+    print("'%s' '%s'" % (uppersockuser, sockmsg))
 
     # at this point we have the sock, the username in uppersockuser and the
     # payload in sockmsg/uppersockmg. Now we start with some very simple
@@ -118,8 +115,6 @@ def readcommand(sock, sockline):
     # /WHO sends a list of (recently) logged on users
     # /LOGON logs the user on and adds them to the list
     # /LOGOFF logs the user off and removes them from the list
-    # /TIMER30 sets the timer to 30 min for inactive users
-    # /TIME60 sets the timer to 60 min for inactive users
     # /STATS sends usage statistics
     # -------------------------------------------------------------------------
 
@@ -140,46 +135,53 @@ def readcommand(sock, sockline):
         deluser(uppersockuser)
     else:
         # must be regular message
-        # user sending to broadcast LOGGED ON?? if so, broadcast
         if uppersockuser in table:
-            broadcastmsg(uppersockuser, sockmsg)
+            broadcastmsg(uppersockuser, sockuser, sockmsg)
         else:
             try:
                 sock.send("You are not currently logged on to Logorrhea".encode())
+                msgcount += 1
             except Exception as err:
                 print("failed with %s" % (err))
                 sock.close()
 
 def senduserlist(uppersockuser):
-    # loop through user list and do
-    # sock.send(user1...99)
-
+    global msgcount
     for user in table:
         try:
             table[uppersockuser]['socket'].send(f"Online last 30min: {user}".encode())
         except Exception as err:
             print("failed with %s" % (err))
             break
+        msgcount += 1
 
 def sendstats(user):
-    # sock.send(<string of collected usage stats>)
-    pass
+    global msgcount
+    s = str(msgcount)
+    t = str(totaluser)
+    try:
+        table[user]['socket'].send(f" Total messages: {s}   Total users:{t}".encode())
+    except Exception as err:
+        print("failed with", err)
+    msgcount += 1
 
 def adduser(user, sock):
-    # add user to userlist dict and inform him he's been added
-    # sock.send(<string of collected usage stats>)
+    global msgcount
+    global totaluser
     table[user] = {'lastactivity': time.time(), 'socket': sock}
     try:
-        sock.send("Welcome to Logorrhea v0.1.".encode())
+        sock.send("Welcome to Logorrhea v0.9".encode())
+        msgcount += 1
+        totaluser += 1
     except Exception as err:
         print("failed with %s" % (err))
 
 def deluser(user):
     global inputs
-    # del user to userlist dict and inform him he's been added
-    # sock.send(<string of collected usage stats>)
+    global msgcount
     try:
-        table[user]['socket'].send("Goodbye from Logorrhea v0.1..".encode())
+        table[user]['socket'].send("Goodbye from Logorrhea v0.9".encode())
+        msgcount += 1
         table[user]['socket'].close()
         inputs.remove(table[user]['socket'])
     except Exception as err:
@@ -187,16 +189,24 @@ def deluser(user):
     finally:
         del table[user]
 
-def broadcastmsg(uppersockuser, sockmsg):
-    # loop through all users WHO HAVE NOT BEEN IDLE FOR TOO LONG and
-    # THE SEND COMMAND NEEDS TO BE LIKE THIS: sock.send(sockmsg)
-    # for username, userDict in table.items():
-    # if userDict['lastActivity'] `is before 30 minutes`:
-    # -->> QUESTION? del table[username] HOW DO I DO TIME.TIME-30M?
+def broadcastmsg(uppersockuser, sockuser, sockmsg):
+    global msgcount
+    # remove users inactive for 30 minutes
     users_to_remove = []
+    thirtyMinutesAgo = time.time()-30*60
+    for username, userDict in table.items():
+        if userDict["lastactivity"] < thirtyMinutesAgo:
+            print("Deleting inactive user '%s'" % (username))
+            users_to_remove.append(username)
+    
+    for user in users_to_remove:
+        del table[user]
+    users_to_remove = []
+    
     for user in table:
         try:
-            table[user]['socket'].send(sockmsg.encode())
+            table[user]['socket'].send(f"> {sockuser} {sockmsg}".encode())
+            msgcount += 1
         except Exception as err:
             print("failed with %s" % (err))
             users_to_remove.append(user)
