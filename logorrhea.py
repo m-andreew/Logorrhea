@@ -1,5 +1,5 @@
 """
-chat v.0.9.6 Jul 30 2023
+chat v.0.9.7 Jul 30 2023
 an FSMP (Fred Short Message Protocol) chat server, starts and listens at
 HOST:PORT
 invoke with:
@@ -43,7 +43,19 @@ inputs = []
 outputs = []
 msgcount = 0 # total messages sent, used by /STATS command
 totaluser = 0 # total users logged in, used by /STATS command
+
+# function to prune old inactive users
+def ticker():
+    users_to_remove = []
+    thirtyMinutesAgo = time.time()-120*60
+    for username, userDict in table.items():
+        if userDict["lastactivity"] < thirtyMinutesAgo:
+            print("Deleting inactive user '%s'" % (username))
+            users_to_remove.append(username)
     
+    for user in users_to_remove:
+        del table[user]
+
 def main():
     global inputs
     print("FSMP chat server started....")
@@ -59,9 +71,9 @@ def main():
         
     inputs = [server_socket]
     outputs = []
+    c = time.time()
     while inputs:
         readable, writable, exceptional = select.select(inputs, outputs, inputs)
-
         for sock in readable:
             if sock is server_socket:
                 conn, addr = sock.accept()
@@ -88,6 +100,9 @@ def main():
                         sock.close()
                     except:
                         pass
+            if time.time()-c >= 60:
+                c = time.time()
+                ticker()
             time.sleep(0.4)
 
         for sock in exceptional:
@@ -146,7 +161,7 @@ def readcommand(sock, sockline):
         # must be regular message
         if uppersockuser in table:
             table[uppersockuser]['lastactivity'] = time.time()
-            broadcastmsg(uppersockuser, sockuser, sockmsg)
+            broadcastmsg(sockuser, sockmsg)
         else:
             try:
                 sock.send("You are not currently logged on to Logorrhea".encode())
@@ -180,7 +195,7 @@ def deluser(user):
     inputs.remove(table[user]['socket'])
     del table[user]
 
-def broadcastmsg(uppersockuser, sockuser, sockmsg):
+def broadcastmsg(sockuser, sockmsg):
     # remove users inactive for 120 minutes
     users_to_remove = []
     thirtyMinutesAgo = time.time()-120*60
@@ -193,7 +208,7 @@ def broadcastmsg(uppersockuser, sockuser, sockmsg):
         del table[user]
     
     for user in table:
-        send(uppersockuser, "> ", sockuser, sockmsg)
+        send(user, "> ", sockuser, sockmsg)
 
 if __name__ == '__main__':
     main()
