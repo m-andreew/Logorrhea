@@ -1,10 +1,17 @@
 """
-wordflow v0.1 Jul 30 2023
-an FSMP client connecting to a Logorrhea instance via TLS
-Usage:
-python wordflow.py host port
-(c) 2023 The FSMP Committee
+(C) Copyright 2023 The FSMP Committee
+wordflow, an FSMP client connecting to a Logorrhea instance via TLS
 All rights reserved
+
+Usage:
+python wordflow.py 
+
+start with /logon
+
+everything typed afterwards will be sent to all participants
+/logoff to unsubscribe from broadcasts
+
+VERSION 0.4
 """
 
 import socket
@@ -54,6 +61,10 @@ def main():
     buffer = ''
     index = 0
     
+    print(' ')
+    print('WordFlow Client v0.4')
+    print('OPTIONS: /LOGON    /LOGOFF    /WHO    /STATS    MESSAGE')
+    print(' ')
     nick = input("Enter Nick: ").upper()
     # Setup Terminal
     fd = sys.stdin.fileno()
@@ -82,7 +93,12 @@ def main():
                     sock.close()
                     sys.exit()
                 elif c == '\n' or c == '\r':
-                    sock.send((f'*MSG {nick} {buffer}').encode('utf-8'))
+                    if buffer == '':
+                        clear_line()
+                        sys.stdout.write('you need to supply a command or a chat message')
+                        sys.stdout.flush()
+                    else:
+                        sock.send((f'*MSG {nick} {buffer}').encode('utf-8'))
                     # clear_line()
                     # sys.stdout.write('> ' + buffer +'\n')
                     # sys.stdout.flush()
