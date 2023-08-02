@@ -11,3 +11,23 @@ The commands available to clients are:
 * `/STATS` some chat server stats
 * `message` whatever you want to tell your friends on the channel
 
+# Typical Logorrhea Session
+```
+> /LOGON fred
+-> LOGON succeeded. 
+-> Total number of users: 1
+-> New user joined:    FRED@127.0.0.1
+> /HELP
+Welcome to Logorrhea, the FSMP chat server, v1.2
+-------------------------------------   ----------------------------
+ 
+/HELP for this help
+/WHO for connected users
+/LOGON to logon to this chat room and start getting chat messages
+/LOGOFF to logoff and stop getting chat messages
+/STATS for chat statistics
+ 
+/ROOM 1-9 to join any room, default is room zero (0)
+ messages with <-> are incoming chat messages...
+ messages with   > are service messages from the chat server
+```
