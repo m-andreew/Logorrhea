@@ -12,18 +12,30 @@ import sys
 import time
 import re
 import datetime
+import subprocess
 
 # configuration parameters - IMPORTANT
-logorrheaversion = "1.2" # needed for compatibility check
+logorrheaversion = "1.2.1" # needed for compatibility check
 timezone = "CET" # IMPORTANT
 maxdormant = 1000 # max time user can be dormant
 HOST = 'localhost' # IMPORTANT
 PORT = 3141 # IMPORTANT
 BUFFER_SIZE = 1024 # IMPORTANT
 shutdownpswd = "absturz" # any user who sends this password shuts down the chat server
+osversion="OS X 10.10" # OS version for enquiries and stats
+typehost="ThinkPad X230" # what kind of machine
+hostloc = "Mein VW Golf" # where is this machine
+osversion = "OS X 10.10" # OS version for enquiries and stats
+osversion = "OS X 10.10" # OS version for enquiries and stats
+sysopname = "Fred" # who is the sysop for this server
+sysopemail = "fred" # where to contact this sysop
 
-
-
+# determine uptime of this machine - WARNING OS DEPENDENCY!!!!!!
+ProdName = subprocess.check_output("uname")
+uptime = re.search(r'up (.+), .*', subprocess.check_output("uptime").decode()).group(1)
+boottime = re.search(r'(\S+ \d\d \d\d:\d\d)', subprocess.check_output("who -b", shell=True).decode()).group(1)
+"""print(ProdName
+print(boottime))"""
 # global vars
 
 logged_on_users = [] # dict of dicts of all logged on users
@@ -31,9 +43,10 @@ inputs = [] # list of all sockets
 outputs = [] # list of uh, nothing
 msgcount = 0 # total number of msgs sent
 totaluser = 0 # online users at any given moment
+highestusers = 0 # most users online at any given moment
 otime = 0 # overtime to log off users after n minutes
 starttime = None # time this server started
-
+logline = " " # initialize log line
 
 # Define SSL context
 context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
@@ -43,13 +56,12 @@ def main():
     global inputs
     global starttime
     starttime = mytime()
-    print(f"Logorrhea chat {logorrheaversion} starting at: {mytime()}")
+    log(f"Logorrhea chat {logorrheaversion} started. ")
     try:
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server_socket.bind((HOST, PORT))
         server_socket.listen()
-        print("Server socket successfully created, now listening")
     except Exception as err:
         print("Error creating server socket:", err)
         sys.exit()
@@ -119,6 +131,10 @@ def handlemsg(userid, sock, msg):
     # HANDLE MESSAGE TYPES
     if umsg == "/WHO":
         sendwho(userid, sock)
+    elif umsg == "/SYSTEM":
+        systeminfo(userid, sock)
+    elif umsg[:5] == "/ROOM":
+        changeroom(userid, sock, msg) # logged on user wants to change room
     elif umsg == "/STATS":
         sendstats(userid, sock)
     elif umsg == "/LOGON":
@@ -130,7 +146,7 @@ def handlemsg(userid, sock, msg):
     elif umsg == "/HELP":
         helpuser(userid, sock)
     elif umsg == shutdownpswd:
-        print(f"Shutdown initiated by {userid}@{sock.getpeername()[0]}")
+        log(f"Shutdown initiated by {userid}@{sock.getpeername()[0]}")
         xit()
     else:
         sendchatmsg(userid, sock, msg)
@@ -157,7 +173,7 @@ def sendchatmsg(userid, sock, msg):
         msgcount = msgcount + 1
     else:
         # USER NOT LOGGED ON YET, LET'S SEND HELP TEXT
-        sock.send('Welcome to Logorrhea, the FSMP chat server, v1.1'.encode())
+        sock.send(f'Welcome to Logorrhea, the FSMP chat server, v{logorrheaversion}'.encode())
         sock.send('You are currently NOT logged on.'.encode())
         sock.send('/HELP for help, or /LOGON to logon'.encode())
         msgcount = msgcount + 3
@@ -179,31 +195,37 @@ def sendstats(userid, sock):
     # send usage statistics to whoever asks, even if not logged on
     global msgcount
     sock.send(f'-> Total number of users: {totaluser}'.encode())
+    sock.send(f'-> Highest nr.  of users: {highestusers}'.encode())
     sock.send(f'-> total number of msgs : {msgcount}'.encode())
     sock.send(f'-> Server up since      : {starttime} {timezone}'.encode())
     
-    msgcount = msgcount + 3
+    msgcount = msgcount + 4
 
 def adduser(userid, sock, currentTime):
     # add user to list
     global totaluser
     global msgcount 
+    global highestusers
     inthere = 0
     for cid in range(len(logged_on_users)):
         entry = logged_on_users[cid]
         if userid == entry[0] and sock == entry[1]:
             inthere = 1
-            print(f"List already logged-on: {userid}@{sock.getpeername()[0]}")
+            log(f"List already logged-on: {userid}@{sock.getpeername()[0]}")
             sock.send('-> You are already logged on.'.encode())
             sock.send(f'-> total number of users: {totaluser}'.encode())
     if inthere == 0:
         totaluser = totaluser + 1
-        logged_on_users.append([userid, sock, currentTime])
-        print(f"List user added: {userid}@{sock.getpeername()[0]}")
-        sock.send('-> LOGON succeeded. '.encode())
         if totaluser < 0:
             totaluser = 0
         
+        if highestusers < totaluser:
+            highestusers = highestusers + 1
+            
+        logged_on_users.append([userid, sock, currentTime])
+        log(f"List user added: {userid}@{sock.getpeername()[0]}")
+        sock.send('-> LOGON succeeded. '.encode())
+
         sock.send(f'-> Total number of users: {totaluser}'.encode())
         announce(userid, sock) # announce new user to all users
     msgcount = msgcount + 2
@@ -224,11 +246,25 @@ def deluser(userid, sock):
             break
             
     if inthere == 0:
-        print(f"User logoff rejected, not logged-on: {userid}@{sock.getpeername()[0]}")
+        log(f"User logoff rejected, not logged-on: {userid}@{sock.getpeername()[0]}")
     
     # Can keep an open conn if they want to
     #  table[user]['socket'].close()
     #  inputs.remove(table[user]['socket'])
+
+def systeminfo(userid, sock):
+    # send /SYSTEM info about this host
+    global msgcount
+    sock.send(f'-> Host                 : {HOST}:{PORT}'.encode())
+    sock.send(f'-> Logorrhea version    : {logorrheaversion}'.encode())
+    sock.send(f'-> OS for this host     : {osversion}'.encode())
+    sock.send(f'-> Type of host         : {typehost}'.encode())
+    sock.send(f'-> Location of this host: {hostloc}'.encode())
+    sock.send(f'-> Time Zone of         : {timezone}'.encode())
+    sock.send(f'-> SysOp for this server: {sysopname}'.encode())
+    sock.send(f'-> SysOp email addr     : {sysopemail}'.encode())
+    
+    msgcount = msgcount + 7
 
 def helpuser(userid, sock):
     # send help menu
@@ -241,6 +277,7 @@ def helpuser(userid, sock):
     sock.send('/LOGON to logon to this chat room and start getting chat messages'.encode())
     sock.send('/LOGOFF to logoff and stop getting chat messages'.encode())
     sock.send('/STATS for chat statistics'.encode())
+    sock.send('/SYSTEM for info about this host'.encode())
     sock.send(' '.encode())
     sock.send('/ROOM 1-9 to join any room, default is room zero (0)'.encode())
     sock.send(' messages with <-> are incoming chat messages...'.encode())
@@ -248,7 +285,7 @@ def helpuser(userid, sock):
     
     
     
-    msgcount = msgcount + 10
+    msgcount = msgcount + 11
 
 def announce(userid, sock):
     # announce newly logged on user to all users
@@ -257,6 +294,33 @@ def announce(userid, sock):
         entry = logged_on_users[ci]
         logged_on_users[ci][1].send(f'-> New user joined:    {userid}@{sock.getpeername()[0]}'.encode())
 
+def changeroom(userid, sock, msg):
+    # user who is already logged on wants to change to a different room
+    stripmsg = msg.strip()
+    wantsroom = stripmsg.split(None, 1)[1] # remove /ROOM from e.g. /ROOM 3 to leave only 3
+    if (not re.match(r'^\d+$', wantsroom)) or (int(wantsroom) < 0) or (int(wantsroom) > 9):
+        sock.send('-> You have chosen an invalid room number (0-9'.encode())
+    else:
+        inthere = 0
+        for ci in range(len(logged_on_users)):
+            entry = logged_on_users[ci]
+            if entry[0] == userid and entry[1] == sock:
+                inthere = 1
+            break
+        if inthere == 1:
+            # USER IS ALREADY LOGGED ON
+            for ci in range(len(logged_on_users)):
+                entry = logged_on_users[ci]
+                # TODO: change room to wantsroom
+                entry[1].send(f'<> -> you are now in room {wantsroom}'.encode())
+        
+            msgcount = msgcount + 1
+        else:
+            # USER NOT LOGGED ON YET, LET'S SEND HELP TEXT
+            sock.send(f'Welcome to Logorrhea, the FSMP chat server, v{logorrheaversion}'.encode())
+            sock.send('You are currently NOT logged on.'.encode())
+            sock.send('/HELP for help, or /LOGON to logon'.encode())
+            msgcount = msgcount + 3
 
 
 def CheckTimeout(ctime):
@@ -268,7 +332,7 @@ def CheckTimeout(ctime):
         if int(ctime) - int(entry[2]) > maxdormant: # timeout per configuration
             cj.append(ci)
     for ci in range(len(cj)):
-        print(f'{logged_on_users[cj[ci]][0]}@{logged_on_users[cj[ci]][1].getpeername()[0]} logged off due to timeout')
+        log(f'{logged_on_users[cj[ci]][0]}@{logged_on_users[cj[ci]][1].getpeername()[0]} logged off due to timeout reached {maxdormant} minutes')
         deluser(logged_on_users[cj[ci]][0], logged_on_users[cj[ci]][1])
         
 def refreshTime(ctime, userid, sock):
@@ -310,6 +374,8 @@ def mytime():
     year = str(now.year)
     
     return f"{timenow}, {dow} {day} {month} {year}" 
-            
+
+def log(logline):
+    print(f"{mytime()} :: {logline}")
 if __name__ == '__main__':
     main()
