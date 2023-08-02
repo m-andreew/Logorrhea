@@ -54,7 +54,7 @@ def main():
     buffer = ''
     index = 0
     
-    nick = input("Enter Nick: ")
+    nick = input("Enter Nick: ").upper()
     # Setup Terminal
     fd = sys.stdin.fileno()
     old_settings = termios.tcgetattr(fd)
@@ -82,7 +82,7 @@ def main():
                     sock.close()
                     sys.exit()
                 elif c == '\n' or c == '\r':
-                    sock.send((nick + '}' + buffer + '\n').encode('utf-8'))
+                    sock.send((f'*MSG {nick} {buffer}').encode('utf-8'))
                     # clear_line()
                     # sys.stdout.write('> ' + buffer +'\n')
                     # sys.stdout.flush()
