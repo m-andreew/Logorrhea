@@ -15,7 +15,7 @@ import datetime
 import subprocess
 
 # configuration parameters - IMPORTANT
-logorrheaversion = "1.2.5" # needed for compatibility check
+logorrheaversion = "1.2.6" # needed for compatibility check
 timezone = "CET" # IMPORTANT
 maxdormant = 500 # max time user can be dormant
 HOST = 'localhost' # IMPORTANT
@@ -28,7 +28,7 @@ hostloc = "Mein VW Golf" # where is this machine
 osversion = "OS X 10.10" # OS version for enquiries and stats
 osversion = "OS X 10.10" # OS version for enquiries and stats
 sysopname = "Fred" # who is the sysop for this server
-sysopemail = "fred" # where to contact this sysop
+sysopemail = "fred@fred" # where to contact this sysop
 
 sl = subprocess.check_output(['uname', '-r']).decode().split()[-1]
 print(f"KERNEL VERSION: {sl}")
@@ -191,10 +191,12 @@ def sendwho(userid, sock):
     global msgcount
     global totaluser
     userswho = 0
-    sock.send('List of currently logged on users:'.encode())
+    sock.send('> List of currently logged on users:'.encode())
+    msgcount = msgcount + 1
     for ci in range(len(logged_on_users)):
         entry = logged_on_users[ci]
-        sock.send(f'> {entry[0]}@{entry[1].getpeername()[0]}'.encode())
+        lasttime = ctime - entry[2]
+        sock.send(f'> {entry[0]}@{entry[1].getpeername()[0]} - last seen in min: {lasttime}'.encode())
         msgcount = msgcount + 1
         userswho = userswho + 1
     sock.send(f'> Total online right now: {userswho}'.encode())
@@ -204,7 +206,7 @@ def sendwho(userid, sock):
 def sendstats(userid, sock):
     # send usage statistics to whoever asks, even if not logged on
     global msgcount
-    global totaluser
+    global totaluser    
     load = subprocess.check_output(['uptime']).decode()
     cpu = re.search(r'load averages: (\d+\.\d+)', load).group(1)
     cpu = cpu[:4].ljust(3)
