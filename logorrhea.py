@@ -324,6 +324,7 @@ def changeroom(userid, sock, msg):
 
 
 def CheckTimeout(ctime):
+    global totaluser
     # check if user hasn't sent a message, automatic LOGOFF
     cj = [] # save logons to remove, else logon buffer doesn't match
     for ci in range(len(logged_on_users)):
@@ -334,7 +335,7 @@ def CheckTimeout(ctime):
     for ci in range(len(cj)):
         log(f'{logged_on_users[cj[ci]][0]}@{logged_on_users[cj[ci]][1].getpeername()[0]} logged off due to timeout reached {maxdormant} minutes')
         deluser(logged_on_users[cj[ci]][0], logged_on_users[cj[ci]][1])
-        
+        totaluser = totaluser - 1
 def refreshTime(ctime, userid, sock):
     # Refresh last transaction time
     # pdb.set_trace()
