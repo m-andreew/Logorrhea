@@ -19,7 +19,7 @@ The commands available to clients are:
 -> New user joined:    FRED@127.0.0.1
 > /HELP
 Welcome to Logorrhea, the FSMP chat server, v1.2
--------------------------------------   ----------------------------
+-----------------------------------------------------------------
  
 /HELP for this help
 /WHO for connected users

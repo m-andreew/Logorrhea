@@ -168,7 +168,7 @@ def sendchatmsg(userid, sock, msg):
         # USER IS ALREADY LOGGED ON
         for ci in range(len(logged_on_users)):
             entry = logged_on_users[ci]
-            entry[1].send(f'<> {userid}@{sock.getpeername()[0]}:{msg}'.encode())
+            entry[1].send(f'{userid}@{sock.getpeername()[0]}:{msg}'.encode())
         
         msgcount = msgcount + 1
     else:
@@ -194,10 +194,10 @@ def sendwho(userid, sock):
 def sendstats(userid, sock):
     # send usage statistics to whoever asks, even if not logged on
     global msgcount
-    sock.send(f'-> Total number of users: {totaluser}'.encode())
-    sock.send(f'-> Highest nr.  of users: {highestusers}'.encode())
-    sock.send(f'-> total number of msgs : {msgcount}'.encode())
-    sock.send(f'-> Server up since      : {starttime} {timezone}'.encode())
+    sock.send(f' > Total number of users: {totaluser}'.encode())
+    sock.send(f' > Highest nr.  of users: {highestusers}'.encode())
+    sock.send(f' > total number of msgs : {msgcount}'.encode())
+    sock.send(f' > Server up since      : {starttime} {timezone}'.encode())
     
     msgcount = msgcount + 4
 
@@ -212,8 +212,8 @@ def adduser(userid, sock, currentTime):
         if userid == entry[0] and sock == entry[1]:
             inthere = 1
             log(f"List already logged-on: {userid}@{sock.getpeername()[0]}")
-            sock.send('-> You are already logged on.'.encode())
-            sock.send(f'-> total number of users: {totaluser}'.encode())
+            sock.send(' > You are already logged on.'.encode())
+            sock.send(f' > total number of users: {totaluser}'.encode())
     if inthere == 0:
         totaluser = totaluser + 1
         if totaluser < 0:
@@ -224,9 +224,9 @@ def adduser(userid, sock, currentTime):
             
         logged_on_users.append([userid, sock, currentTime])
         log(f"List user added: {userid}@{sock.getpeername()[0]}")
-        sock.send('-> LOGON succeeded. '.encode())
+        sock.send(' > LOGON succeeded. '.encode())
 
-        sock.send(f'-> Total number of users: {totaluser}'.encode())
+        sock.send(f' > Total number of users: {totaluser}'.encode())
         announce(userid, sock) # announce new user to all users
     msgcount = msgcount + 2
 
@@ -240,6 +240,8 @@ def deluser(userid, sock):
             inthere = 1
             del logged_on_users[cid]
             totaluser = totaluser - 1
+            if totaluser < 0:
+                totaluser = 0 # fixes some weird bug
             sock.send('-> You are logged off now.'.encode())
             sock.send(f'-> New total number of users: {totaluser}'.encode())
             msgcount = msgcount + 2
@@ -255,14 +257,14 @@ def deluser(userid, sock):
 def systeminfo(userid, sock):
     # send /SYSTEM info about this host
     global msgcount
-    sock.send(f'-> Host                 : {HOST}:{PORT}'.encode())
-    sock.send(f'-> Logorrhea version    : {logorrheaversion}'.encode())
-    sock.send(f'-> OS for this host     : {osversion}'.encode())
-    sock.send(f'-> Type of host         : {typehost}'.encode())
-    sock.send(f'-> Location of this host: {hostloc}'.encode())
-    sock.send(f'-> Time Zone of         : {timezone}'.encode())
-    sock.send(f'-> SysOp for this server: {sysopname}'.encode())
-    sock.send(f'-> SysOp email addr     : {sysopemail}'.encode())
+    sock.send(f' > Host                 : {HOST}:{PORT}'.encode())
+    sock.send(f' > Logorrhea version    : {logorrheaversion}'.encode())
+    sock.send(f' > OS for this host     : {osversion}'.encode())
+    sock.send(f' > Type of host         : {typehost}'.encode())
+    sock.send(f' > Location of this host: {hostloc}'.encode())
+    sock.send(f' > Time Zone of         : {timezone}'.encode())
+    sock.send(f' > SysOp for this server: {sysopname}'.encode())
+    sock.send(f' > SysOp email addr     : {sysopemail}'.encode())
     
     msgcount = msgcount + 7
 
@@ -292,14 +294,15 @@ def announce(userid, sock):
     cj = 0 # save logons to remove, else logon buffer doesn't match
     for ci in range(len(logged_on_users)):
         entry = logged_on_users[ci]
-        logged_on_users[ci][1].send(f'-> New user joined:    {userid}@{sock.getpeername()[0]}'.encode())
+        logged_on_users[ci][1].send(f' > New user joined:    {userid}@{sock.getpeername()[0]}'.encode())
 
 def changeroom(userid, sock, msg):
     # user who is already logged on wants to change to a different room
+    global msgcount
     stripmsg = msg.strip()
     wantsroom = stripmsg.split(None, 1)[1] # remove /ROOM from e.g. /ROOM 3 to leave only 3
     if (not re.match(r'^\d+$', wantsroom)) or (int(wantsroom) < 0) or (int(wantsroom) > 9):
-        sock.send('-> You have chosen an invalid room number (0-9'.encode())
+        sock.send(' > You have chosen an invalid room number (0-9'.encode())
     else:
         inthere = 0
         for ci in range(len(logged_on_users)):
@@ -312,14 +315,14 @@ def changeroom(userid, sock, msg):
             for ci in range(len(logged_on_users)):
                 entry = logged_on_users[ci]
                 # TODO: change room to wantsroom
-                entry[1].send(f'<> -> you are now in room {wantsroom}'.encode())
+                entry[1].send(f' > you are now in room {wantsroom}'.encode())
         
             msgcount = msgcount + 1
         else:
             # USER NOT LOGGED ON YET, LET'S SEND HELP TEXT
-            sock.send(f'Welcome to Logorrhea, the FSMP chat server, v{logorrheaversion}'.encode())
-            sock.send('You are currently NOT logged on.'.encode())
-            sock.send('/HELP for help, or /LOGON to logon'.encode())
+            sock.send(f' > Welcome to Logorrhea, the FSMP chat server, v{logorrheaversion}'.encode())
+            sock.send(' > You are currently NOT logged on.'.encode())
+            sock.send(' > /HELP for help, or /LOGON to logon'.encode())
             msgcount = msgcount + 3
 
 
@@ -331,6 +334,7 @@ def CheckTimeout(ctime):
         entry = logged_on_users[ci]
         # print(entry[0], entry[1].getpeername()[0], ctime, entry[2], int(ctime)-int(entry[2]))
         if int(ctime) - int(entry[2]) > maxdormant: # timeout per configuration
+            totaluser = totaluser - 1
             cj.append(ci)
     for ci in range(len(cj)):
         log(f'{logged_on_users[cj[ci]][0]}@{logged_on_users[cj[ci]][1].getpeername()[0]} logged off due to timeout reached {maxdormant} minutes')
