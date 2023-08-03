@@ -14,6 +14,9 @@ import re
 import datetime
 import subprocess
 import pdb
+import os
+import platform
+import multiprocessing
 
 pdb.set_trace()
 
@@ -21,15 +24,17 @@ pdb.set_trace()
 logorrheaversion = "1.5.0" # needed for compatibility check
 timezone = "CET" # IMPORTANT
 maxdormant = 3000 # max time user can be dormant
-HOST = 'localhost' # IMPORTANT
-PORT = 3141 # IMPORTANT
-BUFFER_SIZE = 1024 # IMPORTANT
+host = 'localhost' # IMPORTANT
+port = 3141 # IMPORTANT
+buffer_size = 1024 # IMPORTANT
 shutdownpswd = "absturz" # any user who sends this password shuts down the chat server
 osversion="OS X 10.10" # OS version for enquiries and stats
 typehost="ThinkPad X230" # what kind of machine
 hostloc = "Mein VW Golf" # where is this machine
-compatibility = 2 # to distinguish between host systems - TODO
 sysopname = "Fred" # sysop user who can force users out
+sysopemail = "fred@fred.net" # where to contact this sysop
+compatibility = 2 # to distinguish between host systems - TODO
+sysopuser = 'fred' # sysop user who can force users out
 sysophost = socket.gethostbyname(socket.gethostname()) # sysop host automatically set
 raterwatermark = 30 # max msgs per second set for this server
 
@@ -47,23 +52,14 @@ starttimeSEC = None # for msg rate calculation
 logline = " " # initialize log line
 receivedmsgs = 0 # number of messages received for stats and loop
 
-# TODO - do different things based on host system
-sl = subprocess.check_output(['uname', '-r']).decode().split()[-1]
-print(f"KERNEL VERSION: {sl}")
 
-load = subprocess.check_output(['uptime']).decode()
-cpu = re.search(r'load averages: (\d+\.\d+)', load).group(1)
-cpu = cpu[:4].ljust(3)
-print(f"CPU: {cpu}%")
+# CODE SECTION
 
-
-
-# determine uptime of this machine - WARNING OS DEPENDENCY!!!!!!
-ProdName = subprocess.check_output("uname").decode()
-uptime = re.search(r'up (.+), .*', subprocess.check_output("uptime").decode()).group(1)
-boottime = re.search(r'(\S+ \d\d \d\d:\d\d)', subprocess.check_output("who -b", shell=True).decode()).group(1)
-print(ProdName)
-print(boottime)
+if compatibility > 1: # this is macOS, not Linux
+    print(f'All CPU avg: {cpu} %    Paging: {paging()}')
+    
+    print(f'Machine type: {configuration()}     RAM: {rstorage()}')
+    print(f'Number of cores: {numcpus()}')
 
 # Define SSL context
 context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
@@ -80,7 +76,7 @@ def main():
     try:
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        server_socket.bind((HOST, PORT))
+        server_socket.bind((host, port))
         server_socket.listen()
     except Exception as err:
         print("Error creating server socket:", err)
@@ -150,10 +146,9 @@ def handlemsg(userid, sock, msg):
     # handle all incoming messages and send to proper function
     userid = userid.strip()
     CurrentTime = exTime()
-    umsg = msg.upper()
+    umsg = msg.upper() # make upper case
     umsg = umsg.strip()
     commandumsg = umsg[1:6]
-    # print(f"short command: {commandumsg}")
     updbuff = 1
 
     # HANDLE MESSAGE TYPES
@@ -175,13 +170,12 @@ def handlemsg(userid, sock, msg):
         log(f"Shutdown initiated by {userid}@{sock.getpeername()[0]}")
         xit()
     elif commandumsg == 'FORCE':
-        print(f'input is: {umsg}')
         force(userid, sock, msg)
     else:
         sendchatmsg(userid, sock, msg)
     
     if updbuff == 1:
-        refreshTime(CurrentTime, userid, sock)
+        refreshTime(CurrentTime, userid, sock) # for each msg!
     CheckTimeout(CurrentTime)
 
 def force(userid, sock, msg):
@@ -255,10 +249,11 @@ def sendstats(userid, sock):
     global msgcount
     global totaluser    
     onlinenow = countusers(userid, sock)
-    load = subprocess.check_output(['uptime']).decode()
-    cpu = re.search(r'load averages: (\d+\.\d+)', load).group(1)
-    cpu = cpu[:4].ljust(3)
-
+    cpu = subprocess.check_output("uptime | awk -F'[a-z]:' '{ print $2}'", shell=True).decode().strip()  
+    actualtime = exTime()
+    elapsedsec = actualtime - starttimeSEC
+    elapsedhr = (elapsedsec / 60) / 60
+    msgsrate = receivedmsgs / elapsedhr
     if totaluser < 0:
         totaluser = 0 # still goes negative sometimes
     sock.send(f'-> Total number of users: {onlinenow}'.encode())
@@ -267,7 +262,7 @@ def sendstats(userid, sock):
     sock.send(f'-> Server up since      : {starttime} {timezone}'.encode())
     sock.send(f'-> System CPU load      : {cpu}%'.encode())
     
-    msgcount = msgcount + 5
+    msgcount = msgcount + 6
 
 def adduser(userid, sock, currentTime):
     # add user to list
@@ -292,6 +287,7 @@ def adduser(userid, sock, currentTime):
             
         logged_on_users.append([userid, sock, currentTime])
         log(f"List user added: {userid}@{sock.getpeername()[0]}")
+        log(f'List size: {len(logged_on_users)}')
         sock.send('-> LOGON succeeded. '.encode())
 
         sock.send(f'-> Total number of users: {totaluser}'.encode())
@@ -308,6 +304,7 @@ def deluser(userid, sock):
             inthere = 1
             del logged_on_users[cid]
             totaluser = totaluser - 1
+            log(f'List size: {len(logged_on_users)}')
             sock.send('-> You are logged off now.'.encode())
             sock.send(f'-> New total number of users: {totaluser}'.encode())
             msgcount = msgcount + 2
@@ -323,10 +320,9 @@ def deluser(userid, sock):
 def systeminfo(userid, sock):
     # send /SYSTEM info about this host
     global msgcount
-    load = subprocess.check_output(['uptime']).decode()
-    cpu = re.search(r'load averages: (\d+\.\d+)', load).group(1)
-    cpu = cpu[:4].ljust(3)
-    sock.send(f'-> Host                 : {HOST}:{PORT}'.encode())
+    cpu = subprocess.check_output("uptime | awk -F'[a-z]:' '{ print $2}'", shell=True).decode().strip()  
+    
+    sock.send(f'-> Host                 : {host}:{port}'.encode())
     sock.send(f'-> Logorrhea version    : {logorrheaversion}'.encode())
     sock.send(f'-> OS for this host     : {osversion}'.encode())
     sock.send(f'-> Type of host         : {typehost}'.encode())
@@ -335,8 +331,21 @@ def systeminfo(userid, sock):
     sock.send(f'-> SysOp for this server: {sysopname}'.encode())
     sock.send(f'-> SysOp email addr     : {sysopemail}'.encode())
     sock.send(f'-> System Load          : {cpu}'.encode())
-    # TODO - more stuff based on host system
-    msgcount = msgcount + 8
+    
+    if compatibility > 1:
+        page = paging()
+        rstor = rstorage()
+        cfg = configuration()
+        lcpus = numcpus()
+        sock.send(f'-> System Load          : {cpu}')
+        sock.send(f'-> Machine Type         : {cfg}')
+        sock.send(f'-> Memory               : {rstor}')
+        sock.send(f'-> Number of CPUs       : {lcpus}')
+    
+    if compatibility > 1:
+        msgcount = msgcount + 12
+    else:
+        msgcount = msgcount + 8
 
 def helpuser(userid, sock):
     # send help menu
@@ -392,6 +401,9 @@ def CheckTimeout(ctime):
         log(f'{logged_on_users[cj[ci]][0]}@{logged_on_users[cj[ci]][1].getpeername()[0]} logged off due to timeout reached {maxdormant} minutes')
         deluser(logged_on_users[cj[ci]][0], logged_on_users[cj[ci]][1])
         totaluser = totaluser - 1
+        
+        
+        
 def refreshTime(ctime, userid, sock):
     # Refresh last transaction time
     # pdb.set_trace()
@@ -434,5 +446,56 @@ def mytime():
 
 def log(logline):
     print(f"{mytime()} :: {logline}")
+
+def cpubusy():
+    cpu_load = subprocess.check_output("uptime | awk -F'[a-z]:' '{ print $2}'", shell=True).decode().strip()
+    cpu = cpu_load.split()[0]
+    return round(float(cpu) * 100, 3)
+
+def paging():
+    output = subprocess.check_output("vm_stat", shell=True).decode()
+    
+    lines = output.strip().split("\n")
+    stats = {}
+    for line in lines:
+        parts = line.split(":")
+        if len(parts) == 2:
+            stats[parts[0].strip()] = int(parts[1].strip().replace(".", "").replace(",", ""))
+
+    page_size = stats["Pages free"] / (256 * 1024)
+
+    uptime = subprocess.check_output("uptime | awk -F'up' '{print $2}' | awk -F',' '{print $1}'", shell=True).decode().strip()
+    uptime = int(uptime.split(":")[0]) * 60 + int(uptime.split(":")[1])
+    paging_rate = (stats["Pages paged in"] + stats["Pages paged out"]) / uptime
+    
+    return paging_rate
+
+def rstorage():
+    output = subprocess.check_output("df -k / | tail -1", shell=True).decode().strip()
+    
+    _, total, used, available, percent, _ = output.split()
+    
+    return int(used)
+
+def configuration():
+    uname = platform.uname()
+    uptime = subprocess.check_output("uptime | awk -F'up' '{print $2}' | awk -F',' '{print $1}'", shell=True).decode().strip()
+    model_info = subprocess.check_output("sysctl hw.model", shell=True).decode().strip()
+    cpu_info = subprocess.check_output("sysctl hw.ncpu", shell=True).decode().strip()
+    
+    system = uname.system
+    node = uname.node
+    release = uname.release
+    version = uname.version
+    machine = uname.machine
+    model = model_info.split(":")[1].strip()
+    ncpu = cpu_info.split(":")[1].strip()
+
+    return system
+
+def numcpus():
+    lcpus = multiprocessing.cpu_count()
+    return lcpus
+    
 if __name__ == '__main__':
     main()
