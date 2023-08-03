@@ -324,7 +324,7 @@ def CheckTimeout(ctime):
         # print(entry[0], entry[1].getpeername()[0], ctime, entry[2], int(ctime)-int(entry[2]))
         if int(ctime) - int(entry[2]) > maxdormant: # timeout per configuration
             totaluser = totaluser - 1
-            print('removed user: {entry[1].getpeername()[0]}')
+            print(f'removed user: {entry[1].getpeername()[0]}')
             cj.append(ci)
     for ci in range(len(cj)):
         log(f'{logged_on_users[cj[ci]][0]}@{logged_on_users[cj[ci]][1].getpeername()[0]} logged off due to timeout reached {maxdormant} minutes')
