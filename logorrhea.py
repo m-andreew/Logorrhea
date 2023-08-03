@@ -15,7 +15,7 @@ import datetime
 import subprocess
 
 # configuration parameters - IMPORTANT
-logorrheaversion = "1.3.0" # needed for compatibility check
+logorrheaversion = "1.4.0" # needed for compatibility check
 timezone = "CET" # IMPORTANT
 maxdormant = 3000 # max time user can be dormant
 HOST = 'localhost' # IMPORTANT
@@ -25,9 +25,9 @@ shutdownpswd = "absturz" # any user who sends this password shuts down the chat 
 osversion="OS X 10.10" # OS version for enquiries and stats
 typehost="ThinkPad X230" # what kind of machine
 hostloc = "Mein VW Golf" # where is this machine
-sysopname = "Fred" # who is the sysop for this server
-sysopemail = "fred@fred" # where to contact this sysop
 compatibility = 2 # to distinguish between host systems - TODO
+sysopname = "Fred" # sysop user who can force users out
+sysophost = socket.gethostbyname(socket.gethostname()) # sysop host automatically set
 
 
 # TODO - do different things based on host system
@@ -49,6 +49,7 @@ print(ProdName)
 print(boottime)
 # global vars
 
+# operation variables
 logged_on_users = [] # dict of dicts of all logged on users
 inputs = [] # list of all sockets
 outputs = [] # list of uh, nothing
@@ -137,6 +138,9 @@ def handlemsg(userid, sock, msg):
     userid = userid.strip()
     CurrentTime = exTime()
     umsg = msg.upper()
+    umsg = umsg.strip()
+    commandumsg = umsg[1:6]
+    # print(f"short command: {commandumsg}")
     updbuff = 1
 
     # HANDLE MESSAGE TYPES
@@ -157,12 +161,41 @@ def handlemsg(userid, sock, msg):
     elif umsg == shutdownpswd:
         log(f"Shutdown initiated by {userid}@{sock.getpeername()[0]}")
         xit()
+    elif commandumsg == 'FORCE':
+        print(f'input is: {umsg}')
+        force(userid, sock, msg)
     else:
         sendchatmsg(userid, sock, msg)
     
     if updbuff == 1:
         refreshTime(CurrentTime, userid, sock)
     CheckTimeout(CurrentTime)
+
+def force(userid, sock, msg):
+    global totaluser
+    global msgcount
+    # sysop forces a user out
+    forceuser = msg[10:17] # extract user after /force command
+    forceuser = strip(forceuser)
+    # print(f"User to be forced - {forceuser}?")
+    if userid == sysopuser and sock.getpeername()[0] = sysophost: #ok, user is autorized
+        inthere = 0
+        for ci in range(len(logged_on_users)):
+            if logged_on_users[ci][0] == forceuser and logged_on_users[ci][1].getpeername()[0] == sock:
+                inthere = 1
+                del logged_on_users[ci]
+                log(f'Forced: {forceuser}@{sock.getpeername()[0]}')
+                totaluser = totaluser - 1
+                sock.send(f'-> This user has been forced off: {forceuser}'.encode())
+                sock.send(f'-> New total number of users: {totaluser}'.encode())
+                msgcount = msgcount + 2
+                break
+        if inthere == 0:
+            log(f"User logoff rejected, not logged-on: {forceuser}@{sock.getpeername()[0]}")
+    else:
+        log(f'This user:  {userid}@{sock.getpeername()[0]} tried to force off user: {forceuser}')
+        sock.send(f'-> Not authorized to force off user: {forceuser}'.encode())
+        msgcount = msgcount + 1
 
 def sendchatmsg(userid, sock, msg):
     # what we got is a message to be distributed to all online users
@@ -298,12 +331,13 @@ def helpuser(userid, sock):
     sock.send(f'Welcome to Logorrhea, the FSMP chat server, v{logorrheaversion}'.encode())
     sock.send('-----------------------------------------------------------------'.encode())
     sock.send(' '.encode())
-    sock.send('/HELP for this help'.encode())
-    sock.send('/WHO for connected users'.encode())
-    sock.send('/LOGON to logon to this chat room and start getting chat messages'.encode())
-    sock.send('/LOGOFF to logoff and stop getting chat messages'.encode())
-    sock.send('/STATS for chat statistics'.encode())
-    sock.send('/SYSTEM for info about this host'.encode())
+    sock.send('/HELP    for this help'.encode())
+    sock.send('/WHO     for connected users'.encode())
+    sock.send('/LOGON   to logon to this chat room and start getting chat messages'.encode())
+    sock.send('/LOGOFF  to logoff and stop getting chat messages'.encode())
+    sock.send('/STATS   for chat statistics'.encode())
+    sock.send('/SYSTEM  for info about this host'.encode())
+    sock.send('/FORCE   to force a user off (SYSOP only)'.encode())
     sock.send(' '.encode())
 #    sock.send('/ROOM 1-9 to join any room, default is room zero (0)'.encode())
     sock.send(' messages with <-> are incoming chat messages...'.encode())
@@ -311,7 +345,7 @@ def helpuser(userid, sock):
     
     
     
-    msgcount = msgcount + 11
+    msgcount = msgcount + 13
 
 def countusers(userid, sock):
     onlineusers = 0
