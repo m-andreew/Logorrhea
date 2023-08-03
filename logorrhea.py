@@ -15,7 +15,7 @@ import datetime
 import subprocess
 
 # configuration parameters - IMPORTANT
-logorrheaversion = "1.2.6" # needed for compatibility check
+logorrheaversion = "1.2.7" # needed for compatibility check
 timezone = "CET" # IMPORTANT
 maxdormant = 500 # max time user can be dormant
 HOST = 'localhost' # IMPORTANT
@@ -25,8 +25,6 @@ shutdownpswd = "absturz" # any user who sends this password shuts down the chat 
 osversion="OS X 10.10" # OS version for enquiries and stats
 typehost="ThinkPad X230" # what kind of machine
 hostloc = "Mein VW Golf" # where is this machine
-osversion = "OS X 10.10" # OS version for enquiries and stats
-osversion = "OS X 10.10" # OS version for enquiries and stats
 sysopname = "Fred" # who is the sysop for this server
 sysopemail = "fred@fred" # where to contact this sysop
 
@@ -207,13 +205,14 @@ def sendstats(userid, sock):
     # send usage statistics to whoever asks, even if not logged on
     global msgcount
     global totaluser    
+    onlinenow = countusers(userid, sock)
     load = subprocess.check_output(['uptime']).decode()
     cpu = re.search(r'load averages: (\d+\.\d+)', load).group(1)
     cpu = cpu[:4].ljust(3)
 
     if totaluser < 0:
         totaluser = 0 # still goes negative sometimes
-    sock.send(f'-> Total number of users: {totaluser}'.encode())
+    sock.send(f'-> Total number of users: {onlinenow}'.encode())
     sock.send(f'-> Highest nr.  of users: {highestusers}'.encode())
     sock.send(f'-> total number of msgs : {msgcount}'.encode())
     sock.send(f'-> Server up since      : {starttime} {timezone}'.encode())
@@ -306,6 +305,15 @@ def helpuser(userid, sock):
     
     
     msgcount = msgcount + 11
+
+def countusers(userid, sock):
+    onlineusers = 0
+    for ci in range(len(logged_on_users)):
+        entry = logged_on_users[ci]
+        lasttime = ctime - entry[2]
+        onlineusers = onlineusers + 1
+    return onlineusers
+    
 
 def announce(userid, sock):
     # announce newly logged on user to all users
