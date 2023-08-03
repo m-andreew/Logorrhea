@@ -1,6 +1,7 @@
 # Logorrhea
 This chat server acts as a reference implementation for the Fred Short Message Protocol.
-Also included is a simple client (WordFlow).
+Also included is a simple client (WordFlow). There's a also a curses client (Mercury), 
+which is functional, but shit.
 
 # Usage
 Run `./certs`, then `python3 logorrhea.py` for the server or `wordflow.py` for the client.

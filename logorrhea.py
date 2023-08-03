@@ -15,9 +15,9 @@ import datetime
 import subprocess
 
 # configuration parameters - IMPORTANT
-logorrheaversion = "1.2.8" # needed for compatibility check
+logorrheaversion = "1.3.0" # needed for compatibility check
 timezone = "CET" # IMPORTANT
-maxdormant = 500 # max time user can be dormant
+maxdormant = 3000 # max time user can be dormant
 HOST = 'localhost' # IMPORTANT
 PORT = 3141 # IMPORTANT
 BUFFER_SIZE = 1024 # IMPORTANT
@@ -27,7 +27,10 @@ typehost="ThinkPad X230" # what kind of machine
 hostloc = "Mein VW Golf" # where is this machine
 sysopname = "Fred" # who is the sysop for this server
 sysopemail = "fred@fred" # where to contact this sysop
+compatibility = 2 # to distinguish between host systems - TODO
 
+
+# TODO - do different things based on host system
 sl = subprocess.check_output(['uname', '-r']).decode().split()[-1]
 print(f"KERNEL VERSION: {sl}")
 
@@ -274,16 +277,20 @@ def deluser(userid, sock):
 def systeminfo(userid, sock):
     # send /SYSTEM info about this host
     global msgcount
-    sock.send(f' > Host                 : {HOST}:{PORT}'.encode())
-    sock.send(f' > Logorrhea version    : {logorrheaversion}'.encode())
-    sock.send(f' > OS for this host     : {osversion}'.encode())
-    sock.send(f' > Type of host         : {typehost}'.encode())
-    sock.send(f' > Location of this host: {hostloc}'.encode())
-    sock.send(f' > Time Zone of         : {timezone}'.encode())
-    sock.send(f' > SysOp for this server: {sysopname}'.encode())
-    sock.send(f' > SysOp email addr     : {sysopemail}'.encode())
-    
-    msgcount = msgcount + 7
+    load = subprocess.check_output(['uptime']).decode()
+    cpu = re.search(r'load averages: (\d+\.\d+)', load).group(1)
+    cpu = cpu[:4].ljust(3)
+    sock.send(f'-> Host                 : {HOST}:{PORT}'.encode())
+    sock.send(f'-> Logorrhea version    : {logorrheaversion}'.encode())
+    sock.send(f'-> OS for this host     : {osversion}'.encode())
+    sock.send(f'-> Type of host         : {typehost}'.encode())
+    sock.send(f'-> Location of this host: {hostloc}'.encode())
+    sock.send(f'-> Time Zone of         : {timezone}'.encode())
+    sock.send(f'-> SysOp for this server: {sysopname}'.encode())
+    sock.send(f'-> SysOp email addr     : {sysopemail}'.encode())
+    sock.send(f'-> System Load          : {cpu}'.encode())
+    # TODO - more stuff based on host system
+    msgcount = msgcount + 8
 
 def helpuser(userid, sock):
     # send help menu
