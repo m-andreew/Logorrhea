@@ -13,9 +13,12 @@ import time
 import re
 import datetime
 import subprocess
+import pdb
+
+pdb.set_trace()
 
 # configuration parameters - IMPORTANT
-logorrheaversion = "1.4.0" # needed for compatibility check
+logorrheaversion = "1.5.0" # needed for compatibility check
 timezone = "CET" # IMPORTANT
 maxdormant = 3000 # max time user can be dormant
 HOST = 'localhost' # IMPORTANT
@@ -28,7 +31,21 @@ hostloc = "Mein VW Golf" # where is this machine
 compatibility = 2 # to distinguish between host systems - TODO
 sysopname = "Fred" # sysop user who can force users out
 sysophost = socket.gethostbyname(socket.gethostname()) # sysop host automatically set
+raterwatermark = 30 # max msgs per second set for this server
 
+# global variables
+
+logged_on_users = [] # dict of dicts of all logged on users
+inputs = [] # list of all sockets
+outputs = [] # list of uh, nothing
+msgcount = 0 # total number of msgs sent
+totaluser = 0 # online users at any given moment
+highestusers = 0 # most users online at any given moment
+otime = 0 # overtime to log off users after n minutes
+starttime = None # time this server started
+starttimeSEC = None # for msg rate calculation
+logline = " " # initialize log line
+receivedmsgs = 0 # number of messages received for stats and loop
 
 # TODO - do different things based on host system
 sl = subprocess.check_output(['uname', '-r']).decode().split()[-1]
@@ -47,18 +64,6 @@ uptime = re.search(r'up (.+), .*', subprocess.check_output("uptime").decode()).g
 boottime = re.search(r'(\S+ \d\d \d\d:\d\d)', subprocess.check_output("who -b", shell=True).decode()).group(1)
 print(ProdName)
 print(boottime)
-# global vars
-
-# operation variables
-logged_on_users = [] # dict of dicts of all logged on users
-inputs = [] # list of all sockets
-outputs = [] # list of uh, nothing
-msgcount = 0 # total number of msgs sent
-totaluser = 0 # online users at any given moment
-highestusers = 0 # most users online at any given moment
-otime = 0 # overtime to log off users after n minutes
-starttime = None # time this server started
-logline = " " # initialize log line
 
 # Define SSL context
 context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
@@ -67,7 +72,10 @@ context.load_cert_chain(certfile='server_cert.pem', keyfile='server_key.pem')
 def main():
     global inputs
     global starttime
+    global starttimeSEC
+    global receivedmsgs
     starttime = mytime()
+    starttimeSEC = exTime()
     log(f"Logorrhea chat {logorrheaversion} started. ")
     try:
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -99,6 +107,11 @@ def main():
                             # format is like this:
                             # *MSG  FRED    hello
                             typ, userid, msg = re.match(r"(\S+) (\S+) (.*)", text).groups()
+                            log(f'from {userid}@{sock.getpeername()[0]} {msg}')
+                            receivedmsgs = receivedmsgs + 1
+                            # below line checks if high rate watermark is exceeded
+                            # and if so... exits!
+                            highrate(receivedmsgs, starttimeSEC, raterwatermark)
                             handlemsg(userid, sock, msg) # pass incoming line to message parser
                         else:
                             if sock in inputs:
@@ -178,7 +191,7 @@ def force(userid, sock, msg):
     forceuser = msg[10:17] # extract user after /force command
     forceuser = strip(forceuser)
     # print(f"User to be forced - {forceuser}?")
-    if userid == sysopuser and sock.getpeername()[0] = sysophost: #ok, user is autorized
+    if userid == sysopuser and sock.getpeername()[0] == sysophost: #ok, user is autorized
         inthere = 0
         for ci in range(len(logged_on_users)):
             if logged_on_users[ci][0] == forceuser and logged_on_users[ci][1].getpeername()[0] == sock:
