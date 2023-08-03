@@ -15,7 +15,7 @@ import datetime
 import subprocess
 
 # configuration parameters - IMPORTANT
-logorrheaversion = "1.2.7" # needed for compatibility check
+logorrheaversion = "1.2.8" # needed for compatibility check
 timezone = "CET" # IMPORTANT
 maxdormant = 500 # max time user can be dormant
 HOST = 'localhost' # IMPORTANT
