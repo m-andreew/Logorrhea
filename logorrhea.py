@@ -21,13 +21,13 @@ import multiprocessing
 pdb.set_trace()
 
 # configuration parameters - IMPORTANT
-logorrheaversion = "1.5.0" # needed for compatibility check
+logorrheaversion = "1.7.0" # needed for compatibility check
 timezone = "CET" # IMPORTANT
 maxdormant = 3000 # max time user can be dormant
 host = 'localhost' # IMPORTANT
 port = 3141 # IMPORTANT
 buffer_size = 1024 # IMPORTANT
-shutdownpswd = "absturz" # any user who sends this password shuts down the chat server
+shutdownpswd = "absturz" # any user with this passwd shuts down the chat server
 osversion="OS X 10.10" # OS version for enquiries and stats
 typehost="ThinkPad X230" # what kind of machine
 hostloc = "Mein VW Golf" # where is this machine
@@ -36,7 +36,14 @@ sysopemail = "fred@fred.net" # where to contact this sysop
 compatibility = 2 # to distinguish between host systems - TODO
 sysopuser = 'fred' # sysop user who can force users out
 sysophost = socket.gethostbyname(socket.gethostname()) # sysop host automatically set
-raterwatermark = 30 # max msgs per second set for this server
+raterwatermark = 12 # max msgs per second set for this server
+
+
+
+# Federation settings below
+federation = 0 # 0 = federation off, receives/no sending, 1=on
+federated = [("shell.xshellz.com", 3141)] # Logorrhea instances at these hosts will get all msgs!
+federatednum = 1 # how many entries in the list
 
 # global variables
 
@@ -51,7 +58,8 @@ starttime = None # time this server started
 starttimeSEC = None # for msg rate calculation
 logline = " " # initialize log line
 receivedmsgs = 0 # number of messages received for stats and loop
-
+premsg = [6, "", "", "", "", "", ""] # needed for loop detector to compare
+msgrotator = 1 # this will rotate the 7 prev msgs
 
 # CODE SECTION
 
@@ -81,7 +89,7 @@ def main():
     except Exception as err:
         print("Error creating server socket:", err)
         sys.exit()
-        
+    
     inputs = [server_socket]
     outputs = []
     c = time.time()
@@ -127,6 +135,7 @@ def main():
                             sock.close()
                         except:
                             pass
+            
             for sock in exceptional:
                 if sock in inputs:
                     inputs.remove(sock)
